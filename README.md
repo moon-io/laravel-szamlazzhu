@@ -8,7 +8,7 @@ Implementation for Laravel which was made to support Szamlazz.hu Agent version o
 
 ## Installation
 ```bash
-composer require szunisoft/laravel-szamlazzhu
+composer require DreamJobsTeam/laravel-szamlazzhu
 ```
 
 ## Introduction
@@ -24,7 +24,7 @@ This package supports the following methods:
 Package can automatically save generated PDF files and store on the given disk. For further information about the configuration possibilities please refer to the [configuration](doc/technical/config.md) documentation.
 
 ## Requirements
-Supports Laravel **5.5.*** - **5.8.***.
+Supports Laravel **5.7.*** - **5.8.***.
 
 ## Documentations
 For usage please refer to the [technical documentation](doc/technical/documentation.md).
