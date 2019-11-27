@@ -80,12 +80,13 @@ class ProformaInvoice extends AbstractInvoice {
     }
 
     /**
+     * @param bool $withoutPdf
      * @return ProformaInvoice
      * @throws CommonResponseException
      */
-    public function update()
+    public function update($withoutPdf = false)
     {
-        $alias = $this->getClient()->getProformaInvoice($this);
+        $alias = $this->getClient()->getProformaInvoice($this, $withoutPdf);
 
         if ($alias) {
             $this->fill($alias->attributes);
