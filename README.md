@@ -8,7 +8,7 @@ Implementation for Laravel which was made to support Szamlazz.hu Agent version o
 
 ## Installation
 ```bash
-composer require DreamJobsTeam/laravel-szamlazzhu
+composer require szunisoft/laravel-szamlazzhu
 ```
 
 ## Introduction
