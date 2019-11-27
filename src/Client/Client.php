@@ -227,7 +227,7 @@ class Client
                         if (isset($certificate['disk'])) {
 
                             $disk = $config['certificate']['disk'];
-                            if (!Storage::disk($disk)->exists($value)) {
+                            if (!Storage::disk($disk)->exists(file_exists($value))) {
                                 return $fail("The specified cert file could not be resolved from disk [$disk] at path [$value]!");
                             }
                         }
@@ -1000,13 +1000,14 @@ class Client
 
     /**
      * @param $orderNumber
+     * @param bool $withoutPdf
      * @return Invoice|ProformaInvoice|AbstractInvoice
      * @throws CommonResponseException
      */
-    public function getInvoiceByOrderNumber($orderNumber)
+    public function getInvoiceByOrderNumber($orderNumber, $withoutPdf = true)
     {
         try {
-            return $this->getInvoiceByOrderNumberOrFail($orderNumber);
+            return $this->getInvoiceByOrderNumberOrFail($orderNumber, $withoutPdf);
         } catch (InvoiceNotFoundException $exception) {
             return null;
         }
@@ -1014,13 +1015,14 @@ class Client
 
     /**
      * @param $orderNumber
+     * @param bool $withoutPdf
      * @return mixed
      * @throws CommonResponseException
      * @throws InvoiceNotFoundException
      */
-    public function getInvoiceByOrderNumberOrFail($orderNumber)
+    public function getInvoiceByOrderNumberOrFail($orderNumber, $withoutPdf = true)
     {
-        list($head, $customer, $merchant, $items) = $this->getCommonInvoice(null, $orderNumber);
+        list($head, $customer, $merchant, $items) = $this->getCommonInvoice(null, $orderNumber, $withoutPdf);
         return $this->invoiceFactory(
             $head['isPrepaymentRequest'] ? ProformaInvoice::class : Invoice::class,
             $head, $customer, $merchant, $items
@@ -1029,28 +1031,30 @@ class Client
 
     /**
      * @param string|Invoice $invoice
+     * @param bool $withoutPdf
      * @return AbstractInvoice|Invoice|ProformaInvoice
      * @throws CommonResponseException
      * @throws InvoiceNotFoundException
      */
-    public function getInvoiceOrFail($invoice)
+    public function getInvoiceOrFail($invoice, $withoutPdf = true)
     {
         if (!is_string($invoice) && !$invoice instanceof Invoice) {
             throw new InvalidArgumentException("Invoice needs to be either invoice number string or instance of [" . Invoice::class . "]");
         }
 
-        return $this->invoiceFactory(Invoice::class, ...$this->getCommonInvoice($invoice instanceof Invoice ? $invoice->invoiceNumber : $invoice));
+        return $this->invoiceFactory(Invoice::class, ...$this->getCommonInvoice($invoice instanceof Invoice ? $invoice->invoiceNumber : $invoice, null, $withoutPdf));
     }
 
     /**
      * @param string|Invoice $invoice
+     * @param bool $withoutPdf
      * @return null|AbstractInvoice|Invoice|ProformaInvoice
      * @throws CommonResponseException
      */
-    public function getInvoice($invoice)
+    public function getInvoice($invoice, $withoutPdf = true)
     {
         try {
-            return $this->getInvoiceOrFail($invoice);
+            return $this->getInvoiceOrFail($invoice, $withoutPdf);
         } catch (InvoiceNotFoundException $exception) {
             return null;
         }
@@ -1058,29 +1062,31 @@ class Client
 
     /**
      * @param string|ProformaInvoice $invoice
+     * @param bool $withoutPdf
      * @return AbstractInvoice|Invoice|ProformaInvoice
      * @throws CommonResponseException
      * @throws InvoiceNotFoundException
      * @throws InvalidArgumentException
      */
-    public function getProformaInvoiceOrFail($invoice)
+    public function getProformaInvoiceOrFail($invoice, $withoutPdf = true)
     {
         if (!is_string($invoice) && !$invoice instanceof ProformaInvoice) {
             throw new InvalidArgumentException("Invoice needs to be either invoice number string or instance of [" . ProformaInvoice::class . "]");
         }
 
-        return $this->invoiceFactory(ProformaInvoice::class, ...$this->getCommonInvoice($invoice instanceof ProformaInvoice ? $invoice->invoiceNumber : $invoice));
+        return $this->invoiceFactory(ProformaInvoice::class, ...$this->getCommonInvoice($invoice instanceof ProformaInvoice ? $invoice->invoiceNumber : $invoice, null, $withoutPdf));
     }
 
     /**
      * @param string|ProformaInvoice $invoice
+     * @param bool $withoutPdf
      * @return null|ProformaInvoice
      * @throws CommonResponseException
      */
-    public function getProformaInvoice($invoice)
+    public function getProformaInvoice($invoice, $withoutPdf = true)
     {
         try {
-            return $this->getProformaInvoiceOrFail($invoice);
+            return $this->getProformaInvoiceOrFail($invoice, $withoutPdf);
         } catch (InvoiceNotFoundException $exception) {
             return null;
         }
@@ -1089,14 +1095,14 @@ class Client
     /**
      * @param string|AbstractInvoice|null $invoiceNumber
      * @param null $orderNumber
+     * @param bool $withoutPdf
      * @return array
      * @throws CommonResponseException
      * @throws InvoiceNotFoundException
      * @throws InvalidArgumentException
      */
-    protected function getCommonInvoice($invoiceNumber = null, $orderNumber = null)
+    protected function getCommonInvoice($invoiceNumber = null, $orderNumber = null, $withoutPdf = true)
     {
-
         if (!$invoiceNumber && !$orderNumber) {
             throw new InvalidArgumentException('Invoice or the orderNumber must be specified!');
         }
@@ -1105,13 +1111,15 @@ class Client
          * Build invoice XML
          */
         $contents = $this->writer(
-            function (XMLWriter $writer) use (&$invoiceNumber, &$orderNumber) {
+            function (XMLWriter $writer) use (&$invoiceNumber, &$orderNumber, &$withoutPdf) {
                 $this->writeCredentials($writer);
                 if ($orderNumber) {
                     $writer->writeElement('rendelesSzam', $orderNumber);
                 } else {
                     $writer->writeElement('szamlaszam', $invoiceNumber);
                 }
+
+                $writer->writeElement('pdf', $this->stringifyBoolean(!$withoutPdf || $this->shouldSavePdf()));
             },
             ...self::ACTIONS['GET_COMMON_INVOICE']['schema']
         );
@@ -1191,6 +1199,19 @@ class Client
                 })
                 ->toArray();
 
+            /*
+             * Saving receipt PDF files - generated by remote API
+             * */
+            if (isset($xml['pdf']) && $xml['pdf'] !== '' && $this->shouldSavePdf() && !$withoutPdf) {
+
+                $this->updatePdfFile(
+                    $this->storageDisk(),
+                    $this->storagePath(),
+                    base64_decode($xml['pdf']),
+                    $xml['alap']['szamlaszam'] . ".pdf"
+                );
+            }
+
         } catch (CommonResponseException $exception) {
 
             if (Str::contains((string)$exception->getResponse()->getBody(), '(ismeretlen számlaszám).')) {
@@ -1266,7 +1287,7 @@ class Client
                     $writer->writeElement('afakulcs', $item['taxRate']);
 
                     $netUnitPrice = $item['netUnitPrice'];
-                    $taxRate = is_numeric($item['taxRate']) ? $item['taxRate'] : 0;
+                     $taxRate = is_numeric($item['taxRate']) ? $item['taxRate'] : 0;
                     $quantity = $item['quantity'];
                     $netPrice = isset($item['netPrice']) ? $item['netPrice'] : ($netUnitPrice * $quantity);
                     $grossPrice = isset($item['grossPrice']) ? $item['grossPrice'] : $netPrice * (1 + ($taxRate / 100));
