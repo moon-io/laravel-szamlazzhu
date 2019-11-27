@@ -110,13 +110,14 @@ class Invoice extends AbstractInvoice {
     /**
      * Updates the invoice instance via API
      *
+     * @param bool $withoutPdf
      * @return Invoice
      * @throws Client\ApiErrors\CommonResponseException
      */
-    public function update()
+    public function update($withoutPdf = false)
     {
 
-        $alias = $this->getClient()->getInvoice($this);
+        $alias = $this->getClient()->getInvoice($this, $withoutPdf);
 
         if ($alias) {
             $this->fill($alias->attributes);
