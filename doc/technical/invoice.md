@@ -25,7 +25,7 @@ use SzuniSoft\SzamlazzHu\Internal\Support\PaymentMethods;
 $invoice = new Invoice(); // Or: new ProformaInvoice();
 
 /*
- * Required attributes 
+ * Required attributes
  */
 
 // Alpha numeric
@@ -37,8 +37,8 @@ $invoice->invoiceLanguage = 'en';
 $invoice->currency = 'EUR';
 $invoice->fulfillmentAt = Carbon::now();
 $invoice->paymentDeadline = Carbon::now()->addMonth();
-// Supported: transfer, cash, bank_card, credit_card, check, c.o.d., 
-// gift_card, barter, Borgun, group, EP_card, OTP_simple, compensation, coupon, 
+// Supported: transfer, cash, bank_card, credit_card, check, c.o.d.,
+// gift_card, barter, Borgun, group, EP_card, OTP_simple, compensation, coupon,
 // PayPal, PayU, SZÉP_card, free_of_charge, voucher
 $invoice->paymentMethod = PaymentMethods::$paymentMethods['c.o.d.'];
 // Boolean
@@ -47,19 +47,19 @@ $invoice->isImprestInvoice = false;
 $invoice->isFinalInvoice = false;
 
 /*
- * Required when currency is not in HUF or Ft 
+ * Required when currency is not in HUF or Ft
  */
  $invoice->exchangeRateBank = 'Some bank';
  $invoice->exchangeRate = 55;
 
 /*
- * Optional attributes 
+ * Optional attributes
  */
 $invoice->invoicePrefix = 'PRFX';
 $invoice->comment = 'Wow! This is an invoice!';
 ```
 #### Note on exchange rate bank
-If the currency is foreign (differs from HUF or Ft) you have to specify the currency exchange bank and rate. But if the provided exchange bank equals to "**MNB**" _(Magyar Nemzeti Bank)_ the API will find out the rate automatically. 
+If the currency is foreign (differs from HUF or Ft) you have to specify the currency exchange bank and rate. But if the provided exchange bank equals to "**MNB**" _(Magyar Nemzeti Bank)_ the API will find out the rate automatically.
 
 ## Setup customer on invoice
 
@@ -156,7 +156,7 @@ $invoice->addItem([
     'netUnitPrice' => 15.0,
     'taxRate' => 10.0,
     // Optional
-    'id' => 123, 
+    'id' => 123,
     'taxValue' => 'automatically calculated..',
     'totalGrossPrice' => 'automatically calculated..',
     'totalNetPrice' => 'automatically calculated..',
@@ -205,7 +205,7 @@ class Cart implemenst ArrayableItemCollection {
             // ...
         ];
     }
-    
+
     public function toItemCollectionArray() {
         return $this->products;
     };
@@ -240,7 +240,8 @@ There are several ways you can obtain an invoice.
 ### By invoice number (getInvoice)
 ```php
 $invoiceNumber = 'XXX-2018-123';
-$invoice = $client->getInvoice($invoiceNumber); // Result is instance of Invoice or null if not found.
+$withoutPdf = true; // It is possible to trigger pdf autosave while querying an invoice, change this variable to false in order to save the pdf
+$invoice = $client->getInvoice($invoiceNumber, $withoutPdf); // Result is instance of Invoice or null if not found.
 ```
 
 ### With failure (getInvoiceOrFail)
@@ -257,7 +258,8 @@ try {
 ### By invoice number (getProformaInvoice)
 ```php
 $proformaInvoiceNumber = 'D-2018-123';
-$proformaInvoice = $client->getProformaInvoice($proformaInvoiceNumber); // Result is instance of ProformaInvoice or null if not found.
+$withoutPdf = true; // It is possible to trigger pdf autosave while querying a proforma invoice, change this variable to false in order to save the pdf
+$proformaInvoice = $client->getProformaInvoice($proformaInvoiceNumber, $withoutPdf); // Result is instance of ProformaInvoice or null if not found.
 ```
 
 ### With failure (getProformaInvoiceOrFail)
@@ -319,7 +321,8 @@ $proformaInvoice->delete();
 
 ## Update invoice details
 You can refresh both invoice and proforma invoice attributes.
+You can also use this method for saving unsaved PDF files.
 ```php
-$invoice->update();
-$proformaInvoice->update();
+$invoice->update($withoutPdf = false);
+$proformaInvoice->update($withoutPdf = false);
 ```
