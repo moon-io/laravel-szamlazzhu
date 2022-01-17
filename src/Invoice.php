@@ -154,6 +154,22 @@ class Invoice extends AbstractInvoice {
     }
 
     /**
+     * Generates Invoice XML
+     *
+     * @param bool $withoutPdf
+     * @param null $emailSubject
+     * @param null $emailMessage
+     * @param InvoiceCreationResponse $response
+     * @return Invoice
+     * @throws InvoiceValidationException
+     */
+    public function generateXml($withoutPdf = false, $emailSubject = null, $emailMessage = null)
+    {
+        $response = $this->getClient()->createInvoiceXml($this, $withoutPdf, $emailSubject, $emailMessage);
+        return $response;
+    }
+
+    /**
      * Fully cancels invoice in API
      *
      * @param bool $withoutPdf

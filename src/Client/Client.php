@@ -707,144 +707,7 @@ class Client
         /*
          * Build invoice XML
          */
-        $contents = $this->writer(
-            function (XMLWriter $writer) use (&$invoice, &$withoutPdf, &$emailSubject, &$emailMessage) {
-
-                /*
-                 * Common settings of invoice
-                 * */
-                $writer->startElement('beallitasok');
-                {
-                    $this->writeCredentials($writer);
-                    $writer->writeElement('eszamla', $this->stringifyBoolean($invoice->isElectronic));
-                    $writer->writeElement('szamlaLetoltes', $this->stringifyBoolean(!$withoutPdf));
-                    $writer->writeElement('valaszVerzio', 2);
-                    $writer->writeElement('aggregator', '');
-                }
-                $writer->endElement();
-
-                /*
-                 * Header info of invoice
-                 * */
-                $writer->startElement('fejlec');
-                {
-                    $writer->writeElement('keltDatum', $invoice->createdAt->format('Y-m-d'));
-                    $writer->writeElement('teljesitesDatum', $invoice->fulfillmentAt->format('Y-m-d'));
-                    $writer->writeElement('fizetesiHataridoDatum', $invoice->paymentDeadline->format('Y-m-d'));
-                    $writer->writeElement('fizmod', $this->getPaymentMethodByAlias($invoice->paymentMethod));
-                    $writer->writeElement('penznem', $invoice->currency);
-                    $writer->writeElement('szamlaNyelve', $invoice->invoiceLanguage);
-                    $this->writeCdataElement($writer, 'megjegyzes', $invoice->comment ?: '');
-                    if ($invoice->exchangeRateBank) {
-                        $writer->writeElement('arfolyamBank', $invoice->exchangeRateBank);
-                    }
-                    if ($invoice->exchangeRate) {
-                        $writer->writeElement('arfolyam', number_format($invoice->exchangeRate, 3, '.', ''));
-                    }
-                    if ($invoice->orderNumber) {
-                        $this->writeCdataElement($writer, 'rendelesSzam', $invoice->orderNumber);
-                    }
-                    $writer->writeElement('elolegszamla', $this->stringifyBoolean($invoice->isImprestInvoice));
-                    $writer->writeElement('vegszamla', $this->stringifyBoolean($invoice->isFinalInvoice));
-                    $writer->writeElement('helyesbitoszamla', $this->stringifyBoolean($invoice->isReplacementInvoice));
-                    $writer->writeElement('dijbekero', $this->stringifyBoolean(($invoice instanceof ProformaInvoice)));
-                    if ($invoice->invoicePrefix) {
-                        $this->writeCdataElement($writer, 'szamlaszamElotag', $invoice->invoicePrefix);
-                    }
-                    $writer->writeElement('fizetve', $this->stringifyBoolean($invoice->isPaid));
-                }
-                $writer->endElement();
-
-                /*
-                 * Merchant details
-                 * */
-                $writer->startElement('elado');
-                {
-                    $writer->writeElement('bank', $invoice->merchantBank);
-                    $writer->writeElement('bankszamlaszam', $invoice->merchantBankAccountNumber);
-                    if ($invoice->merchantReplyEmailAddress) {
-                        $writer->writeElement('emailReplyto', $invoice->merchantReplyEmailAddress);
-                    }
-                    if ($emailSubject) {
-                        $this->writeCdataElement($writer, 'emailTargy', $emailSubject);
-                    }
-                    if ($emailMessage) {
-                        $this->writeCdataElement($writer, 'emailSzoveg', $emailMessage);
-                    }
-                }
-                $writer->endElement();
-
-                /*
-                 * Customer details
-                 * */
-                $writer->startElement('vevo');
-                {
-                    $this->writeCdataElement($writer, 'nev', $invoice->customerName);
-                    $this->writeCdataElement($writer, 'irsz', $invoice->customerZipCode);
-                    $this->writeCdataElement($writer, 'telepules', $invoice->customerCity);
-                    $this->writeCdataElement($writer, 'cim', $invoice->customerAddress);
-                    if ($invoice->customerEmail) {
-                        $writer->writeElement('email', $invoice->customerEmail);
-                    }
-                    $writer->writeElement('sendEmail', $this->stringifyBoolean($invoice->customerReceivesEmail));
-                    if ($invoice->customerTaxNumber) {
-                        $this->writeCdataElement($writer, 'adoszam', $invoice->customerTaxNumber);
-                    }
-                    if ($invoice->customerShippingName) {
-                        $this->writeCdataElement($writer, 'postazasiNev', $invoice->customerShippingName);
-                    }
-                    if ($invoice->customerShippingZipCode) {
-                        $this->writeCdataElement($writer, 'postazasiIrsz', $invoice->customerShippingZipCode);
-                    }
-                    if ($invoice->customerShippingCity) {
-                        $this->writeCdataElement($writer, 'postazasiTelepules', $invoice->customerShippingCity);
-                    }
-                    if ($invoice->customerShippingAddress) {
-                        $this->writeCdataElement($writer, 'postazasiCim', $invoice->customerShippingAddress);
-                    }
-                }
-                $writer->endElement();
-
-                /*
-                 * Apply items
-                 * */
-                $writer->startElement('tetelek');
-                $invoice->items()->each(function (array $item) use (&$writer) {
-                    $writer->startElement('tetel');
-                    {
-                        $this->writeCdataElement($writer, 'megnevezes', $item['name']);
-                        $writer->writeElement('mennyiseg', $item['quantity']);
-                        $this->writeCdataElement($writer, 'mennyisegiEgyseg', $item['quantityUnit']);
-                        $writer->writeElement('nettoEgysegar', $this->commonCurrencyFormat($item['netUnitPrice']));
-                        $writer->writeElement('afakulcs', $item['taxRate']);
-
-                        $netUnitPrice = $item['netUnitPrice'];
-                        $taxRate      = is_numeric($item['taxRate']) ? $item['taxRate'] : 0;
-                        $quantity     = $item['quantity'];
-                        $netPrice     = isset($item['netPrice'])
-                            ? $item['netPrice']
-                            : ($netUnitPrice * $quantity);
-                        $grossPrice   = isset($item['grossPrice'])
-                            ? $item['grossPrice']
-                            : $netPrice * (1 + ($taxRate / 100));
-                        $taxValue     = isset($item['taxValue'])
-                            ? $item['taxValue']
-                            : ($grossPrice - $netPrice);
-
-                        $writer->writeElement('nettoErtek', $this->commonCurrencyFormat($netPrice));
-                        $writer->writeElement('afaErtek', $this->commonCurrencyFormat($taxValue));
-                        $writer->writeElement('bruttoErtek', $this->commonCurrencyFormat($grossPrice));
-                        if (isset($item['comment']) && !empty($item['comment'])) {
-                            $this->writeCdataElement($writer, 'megjegyzes', $item['comment']);
-                        }
-                    }
-                    $writer->endElement();
-                });
-                $writer->endElement();
-
-            },
-            ...self::ACTIONS['UPLOAD_COMMON_INVOICE']['schema']
-        );
+        $contents = $this->createInvoiceXml($invoice, $withoutPdf, $emailSubject, $emailMessage);
 
         /*
          * Send invoice
@@ -1039,6 +902,151 @@ class Client
         }
 
         return $response;
+    }
+
+    public function createInvoiceXml(&$invoice, &$withoutPdf, &$emailSubject, &$emailMessage)
+    {
+        return $this->writer(
+            function (XMLWriter $writer) use (&$invoice, &$withoutPdf, &$emailSubject, &$emailMessage) {
+
+                /*
+                 * Common settings of invoice
+                 * */
+                $writer->startElement('beallitasok');
+                {
+                    $this->writeCredentials($writer);
+                    $writer->writeElement('eszamla', $this->stringifyBoolean($invoice->isElectronic));
+                    $writer->writeElement('szamlaLetoltes', $this->stringifyBoolean(!$withoutPdf));
+                    $writer->writeElement('valaszVerzio', 2);
+                    $writer->writeElement('aggregator', '');
+                }
+                $writer->endElement();
+
+                /*
+                 * Header info of invoice
+                 * */
+                $writer->startElement('fejlec');
+                {
+                    $writer->writeElement('keltDatum', $invoice->createdAt->format('Y-m-d'));
+                    $writer->writeElement('teljesitesDatum', $invoice->fulfillmentAt->format('Y-m-d'));
+                    $writer->writeElement('fizetesiHataridoDatum', $invoice->paymentDeadline->format('Y-m-d'));
+                    $writer->writeElement('fizmod', $this->getPaymentMethodByAlias($invoice->paymentMethod));
+                    $writer->writeElement('penznem', $invoice->currency);
+                    $writer->writeElement('szamlaNyelve', $invoice->invoiceLanguage);
+                    $this->writeCdataElement($writer, 'megjegyzes', $invoice->comment ?: '');
+                    if ($invoice->exchangeRateBank) {
+                        $writer->writeElement('arfolyamBank', $invoice->exchangeRateBank);
+                    }
+                    if ($invoice->exchangeRate) {
+                        $writer->writeElement('arfolyam', number_format($invoice->exchangeRate, 3, '.', ''));
+                    }
+                    if ($invoice->orderNumber) {
+                        $this->writeCdataElement($writer, 'rendelesSzam', $invoice->orderNumber);
+                    }
+                    $writer->writeElement('elolegszamla', $this->stringifyBoolean($invoice->isImprestInvoice));
+                    $writer->writeElement('vegszamla', $this->stringifyBoolean($invoice->isFinalInvoice));
+                    $writer->writeElement('helyesbitoszamla', $this->stringifyBoolean($invoice->isReplacementInvoice));
+                    $writer->writeElement('dijbekero', $this->stringifyBoolean(($invoice instanceof ProformaInvoice)));
+                    if ($invoice->invoicePrefix) {
+                        $this->writeCdataElement($writer, 'szamlaszamElotag', $invoice->invoicePrefix);
+                    }
+                    $writer->writeElement('fizetve', $this->stringifyBoolean($invoice->isPaid));
+                }
+                $writer->endElement();
+
+                /*
+                 * Merchant details
+                 * */
+                $writer->startElement('elado');
+                {
+                    $writer->writeElement('bank', $invoice->merchantBank);
+                    $writer->writeElement('bankszamlaszam', $invoice->merchantBankAccountNumber);
+                    if ($invoice->merchantReplyEmailAddress) {
+                        $writer->writeElement('emailReplyto', $invoice->merchantReplyEmailAddress);
+                    }
+                    if ($emailSubject) {
+                        $this->writeCdataElement($writer, 'emailTargy', $emailSubject);
+                    }
+                    if ($emailMessage) {
+                        $this->writeCdataElement($writer, 'emailSzoveg', $emailMessage);
+                    }
+                }
+                $writer->endElement();
+
+                /*
+                 * Customer details
+                 * */
+                $writer->startElement('vevo');
+                {
+                    $this->writeCdataElement($writer, 'nev', $invoice->customerName);
+                    $this->writeCdataElement($writer, 'irsz', $invoice->customerZipCode);
+                    $this->writeCdataElement($writer, 'telepules', $invoice->customerCity);
+                    $this->writeCdataElement($writer, 'cim', $invoice->customerAddress);
+                    if ($invoice->customerEmail) {
+                        $writer->writeElement('email', $invoice->customerEmail);
+                    }
+                    $writer->writeElement('sendEmail', $this->stringifyBoolean($invoice->customerReceivesEmail));
+                    if ($invoice->customerTaxNumber) {
+                        $this->writeCdataElement($writer, 'adoszam', $invoice->customerTaxNumber);
+                    }
+                    if ($invoice->customerTaxable) {
+                        $this->writeCdataElement($writer, 'adoalany', $invoice->customerTaxable);
+                    }
+                    if ($invoice->customerShippingName) {
+                        $this->writeCdataElement($writer, 'postazasiNev', $invoice->customerShippingName);
+                    }
+                    if ($invoice->customerShippingZipCode) {
+                        $this->writeCdataElement($writer, 'postazasiIrsz', $invoice->customerShippingZipCode);
+                    }
+                    if ($invoice->customerShippingCity) {
+                        $this->writeCdataElement($writer, 'postazasiTelepules', $invoice->customerShippingCity);
+                    }
+                    if ($invoice->customerShippingAddress) {
+                        $this->writeCdataElement($writer, 'postazasiCim', $invoice->customerShippingAddress);
+                    }
+                }
+                $writer->endElement();
+
+                /*
+                 * Apply items
+                 * */
+                $writer->startElement('tetelek');
+                $invoice->items()->each(function (array $item) use (&$writer) {
+                    $writer->startElement('tetel');
+                    {
+                        $this->writeCdataElement($writer, 'megnevezes', $item['name']);
+                        $writer->writeElement('mennyiseg', $item['quantity']);
+                        $this->writeCdataElement($writer, 'mennyisegiEgyseg', $item['quantityUnit']);
+                        $writer->writeElement('nettoEgysegar', $this->commonCurrencyFormat($item['netUnitPrice']));
+                        $writer->writeElement('afakulcs', $item['taxRate']);
+
+                        $netUnitPrice = $item['netUnitPrice'];
+                        $taxRate      = is_numeric($item['taxRate']) ? $item['taxRate'] : 0;
+                        $quantity     = $item['quantity'];
+                        $netPrice     = isset($item['netPrice'])
+                            ? $item['netPrice']
+                            : ($netUnitPrice * $quantity);
+                        $grossPrice   = isset($item['grossPrice'])
+                            ? $item['grossPrice']
+                            : $netPrice * (1 + ($taxRate / 100));
+                        $taxValue     = isset($item['taxValue'])
+                            ? $item['taxValue']
+                            : ($grossPrice - $netPrice);
+
+                        $writer->writeElement('nettoErtek', $this->commonCurrencyFormat($netPrice));
+                        $writer->writeElement('afaErtek', $this->commonCurrencyFormat($taxValue));
+                        $writer->writeElement('bruttoErtek', $this->commonCurrencyFormat($grossPrice));
+                        if (isset($item['comment']) && !empty($item['comment'])) {
+                            $this->writeCdataElement($writer, 'megjegyzes', $item['comment']);
+                        }
+                    }
+                    $writer->endElement();
+                });
+                $writer->endElement();
+
+            },
+            ...self::ACTIONS['UPLOAD_COMMON_INVOICE']['schema']
+        );
     }
 
     /**

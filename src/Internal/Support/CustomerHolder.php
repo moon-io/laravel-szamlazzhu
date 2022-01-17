@@ -23,6 +23,7 @@ use SzuniSoft\SzamlazzHu\Contracts\ArrayableCustomer;
  * @property-read string $customerShippingCity
  * @property-read string $customerShippingAddress
  * @property-read boolean $customerReceivesEmail
+ * @property-read int $customerTaxable
  */
 trait CustomerHolder
 {
@@ -47,6 +48,7 @@ trait CustomerHolder
         'customerShippingCity',
         'customerShippingAddress',
         'customerReceivesEmail',
+        'customerTaxable',
     ];
 
     /**
