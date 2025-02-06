@@ -24,6 +24,7 @@ use SzuniSoft\SzamlazzHu\Client\ApiErrors\InvalidVatRateValueException;
 use SzuniSoft\SzamlazzHu\Client\ApiErrors\InvoiceNotificationSendingException;
 use SzuniSoft\SzamlazzHu\Client\ApiErrors\KeystoreOpeningException;
 use SzuniSoft\SzamlazzHu\Client\ApiErrors\NoXmlFileException;
+use SzuniSoft\SzamlazzHu\Client\ApiErrors\OrderNumberAlreadyExists;
 use SzuniSoft\SzamlazzHu\Client\ApiErrors\ReceiptAlreadyExistsException;
 use SzuniSoft\SzamlazzHu\Client\ApiErrors\ReceiptNotFoundException;
 use SzuniSoft\SzamlazzHu\Client\ApiErrors\RemoteMaintenanceException;
@@ -454,6 +455,9 @@ class Client
                 break;
             case 57:
                 $exceptionClass = XmlReadingException::class;
+                break;
+            case 152:
+                $exceptionClass = OrderNumberAlreadyExists::class;
                 break;
             default:
                 throw new CommonResponseException($response, $message ?: 'Unknown error', $httpStatusCode ?: 500);
